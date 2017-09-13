@@ -1,0 +1,51 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 17/4/19
+ * Time: 下午6:44
+ */
+
+namespace app\admin\api;
+
+
+use app\admin\models\Admin;
+use app\admin\models\Notice;
+use app\admin\models\NoticeLine;
+use app\api\components\BaseApi;
+use yii\helpers\ArrayHelper;
+
+
+class InfoNotice extends BaseApi
+{
+    protected function rules()
+    {
+        return [
+            'access_token' => ['required' => true, 'name' => 'access_token', "message" => "access_token是必需的"],
+            'notice_id' => ['required' => true, 'name' => '通知id'],
+        ];
+    }
+
+    public function run()
+    {
+        $params = $this->params;
+        $admin = new Admin();
+        $user = $admin->getUserByToken($params['access_token']);
+        if (!$user) {
+            return $this->formatData([], 1005, 'token不正确!');
+        }
+        $id = $params['notice_id'];
+        $model = Notice::findOne($id);
+        $nline = NoticeLine::findOne($model->line[0]->id);
+        $data=[];
+        $data['start_time']=$model->start_time;
+        $data['end_time']=$model->end_time;
+        $data['reason']=$model->reason;
+        $data['note']=$model->note;
+        $data['line_id1']=$nline->line_id1;
+        $data['line_id2']=$nline->line_id2;
+        $data['line_id4']=array_values(ArrayHelper::map($model->line,'id','line_id4'));
+        return $this->formatData(['info'=>$data]);
+    }
+
+}

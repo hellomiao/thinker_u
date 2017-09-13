@@ -1,0 +1,48 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 17/7/24
+ * Time: 上午11:44
+ */
+
+namespace app\ajax\controllers;
+
+
+use app\home\models\Customer;
+
+class ApiController extends BaseController
+{
+    public function actionCustomer()
+    {
+        if (\Yii::$app->request->isAjax) {
+            $platform_id = \Yii::$app->request->post('platform_id');
+            $keywords = \Yii::$app->request->post('keywords');
+            $data = [];
+            $data['delivery'] = Customer::find()->where(['platform_id' => $platform_id, 'status' => 0])->count();
+            $data['sleep'] = Customer::find()->where(['platform_id' => $platform_id, 'status' => 1])->count();
+            $query = Customer::find()->where(['platform_id' => $platform_id]);
+            if ($keywords) {
+                $query->andWhere(['or', ['like', 'code', $keywords], ['like', 'name', $keywords]]);
+            }
+            $listTmp = $query->all();
+            $data['items'] = [];
+            foreach ($listTmp as $key => $val) {
+                $data['items'][$key]['id'] = $val->id;
+                $data['items'][$key]['number'] = $val->code;
+                $data['items'][$key]['name'] = $val->name;
+                $data['items'][$key]['type'] = $val->status == 1 ? 2 : 1;
+                $data['items'][$key]['location'] = ['longitude' => $val->longitude, 'latitude' => $val->latitude];
+            }
+
+            return $this->response($data);
+        }
+
+    }
+
+    public function actionTest()
+    {
+        return $this->renderPartial('test');
+    }
+
+}

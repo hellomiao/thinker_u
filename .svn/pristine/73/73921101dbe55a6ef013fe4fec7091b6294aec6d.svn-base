@@ -1,0 +1,492 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 17/7/24
+ * Time: 上午11:44
+ */
+
+namespace app\ajax\controllers;
+
+
+use app\admin\models\PlatformUser;
+use app\base\lib\Utils;
+use app\home\models\Customer;
+use app\home\models\Delivery;
+use app\home\models\DeliveryLocations;
+use app\home\models\Driver;
+use app\home\models\Order;
+use app\home\models\User;
+use yii\helpers\ArrayHelper;
+
+class ApiController extends BaseController
+{
+    public function actionCustomer()
+    {
+
+
+        $platform_id = \Yii::$app->request->post('platform_id');
+        $keywords = \Yii::$app->request->post('keywords');
+        $data = [];
+        $data['delivery'] = Customer::find()->where(['platform_id' => $platform_id, 'status' => 0])->count();
+        $data['sleep'] = Customer::find()->where(['platform_id' => $platform_id, 'status' => 1])->count();
+        $query = Customer::find()->where(['platform_id' => $platform_id]);
+        if ($keywords) {
+            $query->andWhere(['or', ['like', 'code', $keywords], ['like', 'name', $keywords]]);
+        }
+        $listTmp = $query->all();
+        $data['items'] = [];
+        foreach ($listTmp as $key => $val) {
+            $data['items'][$key]['id'] = $val->id;
+            $data['items'][$key]['number'] = $val->code;
+            $data['items'][$key]['name'] = $val->name;
+            $data['items'][$key]['code'] = $val->code;
+            $data['items'][$key]['type'] = $val->status == 1 ? 2 : 1;
+            $data['items'][$key]['location'] = ['longitude' => $val->longitude, 'latitude' => $val->latitude];
+        }
+        unset($listTmp);
+        $this->response($data);
+
+
+    }
+
+    public function actionOrder()
+    {
+        $platform_id = \Yii::$app->request->post('platform_id');
+        $where['platform_id'] = $platform_id;
+
+//        if (date("G") >= 16) {
+//            $tomorrow = date("Y-m-d", strtotime("+1 day"));
+//            $where['delivery_date'] = $tomorrow;
+//        } else {
+//            $today = date("Y-m-d");
+//            $where['delivery_date'] = $today;
+//        }
+        $tomorrow = date("Y-m-d", strtotime("+1 day"));
+        $today = date("Y-m-d");
+        $where['delivery_date'] = [$today, $tomorrow];
+        $data = [];
+
+        $user = User::find()->where(['platform_id' => $platform_id])->all();
+        foreach ($user as $k => $v) {
+            $orders = Order::find()->where($where)->andWhere(['user_id' => $v->id, 'status' => 0])->all();
+            if ($orders) {
+                $data[$k]['id'] = $v->id;
+                $data[$k]['name'] = $v->realname ? $v->realname : $v->username;
+                $data[$k]['items'] = [];
+                foreach ($orders as $key => $val) {
+                    $data[$k]['items'][$key]['order_id'] = $val->id;
+                    $data[$k]['items'][$key]['name'] = $val->customer->name;
+                    $data[$k]['items'][$key]['code'] = $val->customer->code;
+                    $data[$k]['items'][$key]['address'] = $val->customer->address;
+                    $data[$k]['items'][$key]['state'] = $val->status == 1 || $val->status == 0 ? 2 : 1;
+                    $data[$k]['items'][$key]['delivery_time'] = $val->delivery_time;
+                    $data[$k]['items'][$key]['cargo_num'] = $val->num;
+                    $data[$k]['items'][$key]['remarks'] = $val->note;
+                    $data[$k]['items'][$key]['location'] = ['longitude' => $val->customer->longitude,
+                        'latitude' => $val->customer->latitude];
+                }
+            }
+        }
+
+
+        $this->response(array_values($data));
+
+    }
+
+    public function actionDriver()
+    {
+        $data = [];
+        $platform_id = \Yii::$app->request->post('platform_id');
+
+        $listTmp = Driver::find()->where(['platform_id' => $platform_id])->all();
+        foreach ($listTmp as $key => $val) {
+            $data[$key]['id'] = $val->id;
+            $data[$key]['driver'] = $val->username;
+            $data[$key]['tag'] = $val->checkLimit() ? '今日限行' : '';
+            $carInfo = [];
+            $carInfo[] = ['id' => 1, 'name' => '车牌号', 'value' => $val->car_number];
+            $carInfo[] = ['id' => 2, 'name' => '车型号', 'value' => $val->car_type];
+            $carInfo[] = ['id' => 3, 'name' => '车辆内控', 'value' => $val->inner_size];
+            $carInfo[] = ['id' => 4, 'name' => '车辆外厢', 'value' => $val->outer_size];
+            $data[$key]['car_info'] = $carInfo;
+            $data[$key]['goods_info'] = $val->getGoods();
+        }
+        unset($listTmp);
+        $this->response($data);
+    }
+
+
+    public function actionDeliver()
+    {
+
+
+        $tom = date("Y-m-d", strtotime("+1 day"));
+        $mydate = date("Y-m-d");
+
+
+        $data = [];
+        $platform_id = \Yii::$app->request->post('platform_id');
+        $date = \Yii::$app->request->post('date', date("Y-m-d"));
+        $listTmp = Delivery::find()->where(['delivery_date' => $date, 'platform_id' => $platform_id])->all();
+        foreach ($listTmp as $key => $val) {
+            $data[$key]['id'] = $val->id;
+            $data[$key]['driver'] = $val->driver->username;
+            $data[$key]['distance'] = $val->distance;
+            $data[$key]['interval'] = Utils::sec2time($val->duration);
+            $data[$key]['goods_num'] = $val->num;
+            $data[$key]['total'] = $val->getOrderNum($platform_id);
+            $data[$key]['no_delivery'] = $val->getOrderNum($platform_id, 1);
+            $data[$key]['delivery'] = $val->getOrderNum($platform_id, 2);
+            if ($date == $mydate || $date == $tom) {
+                $data[$key]['editable'] = $data[$key]['no_delivery'] == 0 ? false : true;
+
+            } else {
+                $data[$key]['editable'] = false;
+
+            }
+        }
+        unset($listTmp);
+        $this->response($data);
+
+
+    }
+
+    public function actionDelDeliver()
+    {
+
+        $platform_id = \Yii::$app->request->post('platform_id');
+        $id = \Yii::$app->request->post('id');
+        if (!$id) {
+            $this->response([], '1002', 'id必须传');
+        }
+        $orders = Order::find()->where(['platform_id' => $platform_id, 'delivery_id' => $id, 'status' => 2])->exists();
+        if ($orders) {
+            $this->response([], '1002', '有订单已经配送完成,不可删除!');
+        }
+        Delivery::deleteAll(['id' => $id]);
+
+        Order::updateAll(['status' => 0, 'delivery_id' => 0, 'driver_id' => 0], ['delivery_id' => $id]);
+        $this->response([], 1000, '删除成功!');
+    }
+
+
+    //配送单详情
+    public function actionDeliverInfo()
+    {
+        $data = [];
+        $platform_id = \Yii::$app->request->post('platform_id');
+        $id = \Yii::$app->request->post('id');
+        $row = Delivery::findOne($id);
+        $data['id'] = $row->id;
+        $data['total'] = $row->getOrderNum($platform_id);
+        $data['no_delivery'] = $row->getOrderNum($platform_id, 1);
+        $data['delivery'] = $row->getOrderNum($platform_id, 2);
+        $data['driver'] = $row->driver->username;
+        $data['driver_id'] = $row->driver_id;
+        $data['distance'] = $row->distance;
+        $data['interval'] = Utils::sec2time($row->duration);
+        $data['goods_num'] = $row->num;
+        $data['order_time'] = $row->delivery_date;
+        $one = PlatformUser::findOne($platform_id);
+        $time1 = strtotime($row->delivery_date . ' 00:00:00');
+        $time2 = strtotime($row->delivery_date . ' 24:00:00');
+        $driver=Driver::findOne($row->driver_id);
+        $localTmp = DeliveryLocations::find()->where(['platform_id' =>$platform_id, 'driver_id' => $driver->user_id])
+            ->andWhere(['>=', 'created_at', $time1])->andWhere(['<', 'created_at', $time2])->all();
+        $polylines = [];
+        $polylines[0]['longitude'] = $one->longitude;
+        $polylines[0]['latitude'] = $one->latitude;
+        foreach ($localTmp as $key => $val) {
+            $polylines[$key + 1]['longitude'] = $val->longitude;
+            $polylines[$key + 1]['latitude'] = $val->latitude;
+        }
+        unset($localTmp);
+
+        $data['polylines'] = $polylines;
+        $data['items'] = [];
+        $listTmp = Order::find()->where(['platform_id' => $platform_id, 'delivery_id' => $id])
+            ->orderBy('order_num asc')->all();
+        foreach ($listTmp as $key => $val) {
+            $data['items'][$key]['order_id'] = $val->id;
+            $data['items'][$key]['name'] = $val->customer->name;
+            $data['items'][$key]['code'] = $val->customer->code;
+            $data['items'][$key]['sort'] = $val->order_num;
+            $data['items'][$key]['address'] = $val->customer->address;
+            $data['items'][$key]['state'] = $val->status == 1 ? 2 : 1;
+            $data['items'][$key]['delivery_time'] = $val->delivery_time;
+            $data['items'][$key]['cargo_num'] = $val->num;
+            $data['items'][$key]['remarks'] = $val->note;
+            $data['items'][$key]['location'] = [
+                'longitude' => $val->customer->longitude,
+                'latitude' => $val->customer->latitude
+            ];
+            $data['items'][$key]['already'] = [
+                'arrival' => $val->start_time ? date("H:i", $val->start_time) : '',
+                'departure' => $val->end_time ? date("H:i", $val->end_time) : '',
+                'stop' => $val->start_time && $val->end_time ? Utils::sec2time($val->end_time - $val->start_time) : ''
+            ];
+        }
+        unset($listTmp);
+        $this->response($data);
+
+    }
+
+    //配送单详情
+    public function actionUpDeliverInfo()
+    {
+        $data = [];
+        $platform_id = \Yii::$app->request->post('platform_id');
+        $id = \Yii::$app->request->post('id');
+
+        $where['platform_id'] = $platform_id;
+
+        $d = Delivery::findOne($id);
+
+        $no_delivery = $d->getOrderNum($platform_id, 1);
+        $editable = $no_delivery == 0 || $d->delivery_date < date("Y-m-d") ? false : true;
+        if (!$editable) {
+            $this->response([], '1002', '不可编辑');
+        }
+
+
+        $date = $d->delivery_date;
+
+//        if (date("G") >= 16) {
+//            $tomorrow = date("Y-m-d", strtotime("+1 day"));
+//            $delivery_date = $tomorrow;
+//        } else {
+//            $today = date("Y-m-d");
+//            $delivery_date = $today;
+//        }
+
+
+        $delivery_date = $date;
+
+
+        $list = [];
+
+        $user = User::find()->where(['platform_id' => $platform_id])->all();
+        foreach ($user as $k => $v) {
+            $orders = Order::find()->where($where)
+                ->andWhere(['user_id' => $v->id])->andWhere(['or', ['status' => 0, 'delivery_date' => $delivery_date], ['delivery_id' => $id, 'status' => 1]])->all();
+            if ($orders) {
+                $list[$k]['id'] = $v->id;
+                $list[$k]['name'] = $v->realname ? $v->realname : $v->username;
+                $list[$k]['items'] = [];
+                foreach ($orders as $key => $val) {
+                    $list[$k]['items'][$key]['order_id'] = $val->id;
+                    $list[$k]['items'][$key]['name'] = $val->customer->name;
+                    $list[$k]['items'][$key]['code'] = $val->customer->code;
+                    $list[$k]['items'][$key]['address'] = $val->customer->address;
+                    $list[$k]['items'][$key]['state'] = $val->status == 1 ? 2 : 1;
+                    $list[$k]['items'][$key]['delivery_time'] = $val->delivery_time;
+                    $list[$k]['items'][$key]['cargo_num'] = $val->num;
+                    $list[$k]['items'][$key]['remarks'] = $val->note;
+                    $list[$k]['items'][$key]['status'] = $val->status;
+                    $list[$k]['items'][$key]['location'] = ['longitude' => $val->customer->longitude,
+                        'latitude' => $val->customer->latitude];
+
+                    $list[$k]['items'][$key]['already'] = [
+                        'arrival' => $val->start_time ? date("H:i", $val->start_time) : '',
+                        'departure' => $val->end_time ? date("H:i", $val->end_time) : '',
+                        'stop' => $val->start_time && $val->end_time ? Utils::sec2time($val->end_time - $val->start_time) : ''
+                    ];
+                }
+            }
+        }
+
+        $data = $list;
+
+
+        $this->response(array_values($data));
+
+    }
+
+    public function actionAddDeliver()
+    {
+        $platform_id = \Yii::$app->request->post('platform_id');
+        $driver_id = \Yii::$app->request->post('driver_id');
+        $distance = \Yii::$app->request->post('distance');
+        $interval = \Yii::$app->request->post('interval');
+        $items = \Yii::$app->request->post('items');
+        $act = \Yii::$app->request->post('act');
+        if ($act == 'add') {
+            $delivery = new Delivery();
+            $delivery->platform_id = $platform_id;
+            $delivery->driver_id = $driver_id;
+            $delivery->distance = $distance;
+            $delivery->duration = $interval;
+            $delivery->created_at = time();
+            $oder_id[] = [];
+            foreach ($items as $k => $v) {
+                $oder_id[] = $v['order_id'];
+                $oo = Order::findOne($v['order_id']);
+                if ($oo->status == 0) {
+                    Order::updateAll(['order_num' => $k + 1,
+                        'delivery_time' => $v['delivery_time'],
+                        'distance' => $v['distance'], 'duration' => $v['interval'],
+                        'driver_id' => $driver_id, 'status' => 1], ['id' => $v['order_id']]);
+                }
+            }
+            $o = Order::find()->select('sum(num) as total,delivery_date')->where(['id' => $oder_id])->asArray()->one();
+            $delivery->delivery_date = $o['delivery_date'];
+            $delivery->num = $o['total'];
+            if ($delivery->save()) {
+                Order::updateAll(['delivery_id' => $delivery->id], ['id' => $oder_id]);
+                $this->response([], 1000, '保存成功');
+            } else {
+                $this->response([], 1002, '保存失败');
+            }
+
+        } else {
+            $id = \Yii::$app->request->post('id');
+            $deliveryModel = Delivery::findOne($id);
+
+            $deliveryModel->driver_id = $driver_id;
+            $deliveryModel->distance = $distance;
+            $deliveryModel->duration = $interval;
+            foreach ($items as $k => $v) {
+                $oder_id[] = $v['order_id'];
+                $oo = Order::findOne($v['order_id']);
+                if ($oo->status != 2) {
+                    Order::updateAll(['order_num' => $k + 1,
+                        'delivery_time' => $v['delivery_time'],
+                        'distance' => $v['distance'], 'duration' => $v['interval'],
+                        'driver_id' => $id, 'delivery_id' => $id, 'status' => 1], ['id' => $v['order_id']]);
+                }
+            }
+            $u = Order::find()->where(['delivery_id' => $id, 'status' => 1])->all();
+            foreach ($u as $v) {
+                if (!in_array($v['id'], $oder_id)) {
+                    Order::updateAll(['status' => 0, 'delivery_id' => 0, 'driver_id' => 0], ['id' => $v['id']]);
+                }
+            }
+            $o = Order::find()->select('sum(num) as total,delivery_date')->where(['id' => $oder_id])->orWhere(['delivery_id' => $id, 'status' => 2])->asArray()->one();
+            $deliveryModel->num = $o['total'];
+            if ($deliveryModel->save()) {
+                $this->response([], 1000, '更新成功');
+            } else {
+                $this->response([], 1000, '更新失败');
+            }
+
+        }
+    }
+
+
+    public function actionOrders()
+    {
+        $platform_id = \Yii::$app->request->post('platform_id');
+
+
+        $now = date('Y-m-d');
+        $date = \Yii::$app->request->post('date', date("Y-m-d"));
+        $tomorrow = date("Y-m-d", strtotime("+1 day"));
+        if ($date == $tomorrow) {
+            $delivery_date = $date;
+        } else {
+            $delivery_date = [$now, $tomorrow];
+        }
+//        if (date("G") >= 16) {
+//            $tomorrow = date("Y-m-d", strtotime("+1 day"));
+//
+//            if ($date != $tomorrow) {
+//                $delivery_date = $date;
+//            } else {
+//                $delivery_date = $tomorrow;
+//            }
+//        } else {
+//            $today = date("Y-m-d");
+//            if ($date != $today) {
+//                $delivery_date = $date;
+//            } else {
+//                $delivery_date = $today;
+//            }
+//
+//        }
+
+
+        $where['platform_id'] = $platform_id;
+
+        $data = [];
+        $ids = [];
+        $dlist = Delivery::find()->select('id')->where(['delivery_date' => $date, 'platform_id' => $platform_id])->all();
+        if ($dlist) {
+            foreach ($dlist as $key => $val) {
+                $ids[] = $val->id;
+            }
+        }
+        $c1 = Order::find()->where($where)->andWhere(['or', ['delivery_id' => $ids], ['status' => 0, 'delivery_date' => $delivery_date]])->count();
+        $c2 = Order::find()->where($where)->andWhere(['or', ['delivery_id' => $ids, 'status' => 1], ['status' => 0, 'delivery_date' => $delivery_date]])->count();
+        $c3 = Order::find()->where($where)->andWhere(['delivery_id' => $ids, 'status' => 2])->count();
+        $user = User::find()->where(['platform_id' => $platform_id])->all();
+        foreach ($user as $k => $v) {
+            $orders = Order::find()->where($where)->andWhere(['user_id' => $v->id])->andWhere(['or', ['delivery_id' => $ids], ['status' => 0, 'delivery_date' => $delivery_date]])->all();
+            if ($orders) {
+                $data[$k]['id'] = $v->id;
+                $data[$k]['name'] = $v->realname ? $v->realname : $v->username;
+                $data[$k]['items'] = [];
+                foreach ($orders as $key => $val) {
+                    $data[$k]['items'][$key]['order_id'] = $val->id;
+                    $data[$k]['items'][$key]['name'] = $val->customer->name;
+                    $data[$k]['items'][$key]['code'] = $val->customer->code;
+                    $data[$k]['items'][$key]['address'] = $val->customer->address;
+                    $data[$k]['items'][$key]['state'] = $val->status == 1 ? 2 : 1;
+                    $data[$k]['items'][$key]['delivery_time'] = $val->delivery_time;
+                    $data[$k]['items'][$key]['cargo_num'] = $val->num;
+                    $data[$k]['items'][$key]['remarks'] = $val->note;
+                    $data[$k]['items'][$key]['location'] = ['longitude' => $val->customer->longitude,
+                        'latitude' => $val->customer->latitude];
+                }
+            }
+        }
+
+
+        $this->response(['total' => $c1, 'no_delivery' => $c2, 'delivery' => $c3, 'list' => array_values($data)]);
+
+    }
+
+
+    public function actionGetLocation()
+    {
+
+        $platform_id = \Yii::$app->request->post('platform_id');
+        $one = PlatformUser::findOne($platform_id);
+        $data = [];
+        $data['location'] = [
+            'longitude' => $one->longitude,
+            'latitude' => $one->latitude
+        ];
+        $this->response($data);
+    }
+
+
+    public function actionDeliveryLocation()
+    {
+        $platform_id = \Yii::$app->request->post('platform_id');
+
+        $id = \Yii::$app->request->post('id');
+        $d = Delivery::findOne($id);
+        $driver=Driver::findOne($d->driver_id);
+        $time1 = strtotime($d->delivery_date . ' 00:00:00');
+        $time2 = strtotime($d->delivery_date . ' 24:00:00');
+        $data = [];
+        $listTmp = DeliveryLocations::find()->where(['platform_id' =>$platform_id, 'driver_id' => $driver->user_id])
+            ->andWhere(['>=', 'created_at', $time1])->andWhere(['<', 'created_at', $time2])->all();
+        foreach ($listTmp as $key => $val) {
+
+            $data[$key]['location'] = [
+                'longitude' => $val->longitude,
+                'latitude' => $val->latitude
+            ];
+        }
+        $this->response($data);
+    }
+
+    public function actionTest()
+    {
+
+        return $this->renderPartial('test');
+    }
+
+}

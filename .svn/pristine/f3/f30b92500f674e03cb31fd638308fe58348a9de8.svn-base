@@ -1,0 +1,157 @@
+<?php
+
+use yii\helpers\Html;
+use yii\widgets\ActiveForm;
+
+/* @var $this yii\web\View */
+/* @var $model app\home\models\Customer */
+/* @var $form yii\widgets\ActiveForm */
+?>
+
+<div class="customer-form">
+
+    <?php $form = ActiveForm::begin(['id'=>$model->formName()]); ?>
+
+    <?= $form->field($model, 'name')->textInput(['maxlength' => true,
+        'placeholder'=>'请填写真实姓名']) ?>
+
+    <?= $form->field($model, 'code')->textInput(['maxlength' => true]) ?>
+
+    <?= $form->field($model, 'tel1')->textInput(['maxlength' => true,'placeholder'=>'输入用户的手机号或座机号码']) ?>
+
+    <?= $form->field($model, 'tel2')->textInput(['maxlength' => true,'placeholder'=>'输入用户的手机号或座机号码']) ?>
+
+    <div class="row">
+        <div class="col-xs-2">
+            <?= $form->field($model,'province')->dropDownList($district->getList(0),
+                [
+                    'prompt'=>'--请选择省--',
+                    'onchange'=>'
+            $(".form-group.field-member-area").hide();
+            $.post("'.yii::$app->urlManager->createUrl('ajax/distrct').'?level=1&pid="+$(this).val(),function(data){
+                $("select#customer-city").html(data);
+            });',
+                ]) ?>
+        </div>
+        <div class="col-xs-2">
+            <?= $form->field($model, 'city')->dropDownList($district->getList($model->province),
+                [
+                    'prompt'=>'--请选择市--',
+                    'onchange'=>'
+            $(".form-group.field-member-area").show();
+            $.post("'.yii::$app->urlManager->createUrl('ajax/distrct').'?level=2&pid="+$(this).val(),function(data){
+                $("select#customer-area").html(data);
+            });',
+                ]) ?>
+        </div>
+
+        <div class="col-xs-2">
+            <?= $form->field($model, 'area')->dropDownList($district->getList($model->city),[
+                'prompt'=>'--请选择区--',
+                'onchange'=>'
+            $(".form-group.field-member-area").show();
+            var province=$("#customer-province").find("option:selected").text();
+            var city=$("#customer-city").find("option:selected").text();
+            var area=$(this).find("option:selected").text();
+            $("#customer-address").val(province+city+area);
+            ',
+            ]) ?>
+        </div>
+
+
+
+    </div>
+
+    <?= $form->field($model, 'address')->textInput(['maxlength' => true]) ?>
+
+    <div class="form-group">
+
+    <div id="container"  style="height: 300px"  class="map col-xs-12" tabindex="0"></div>
+
+    </div>
+
+    <?= $form->field($model, 'longitude')->textInput(['maxlength' => true]) ?>
+
+    <?= $form->field($model, 'latitude')->textInput(['maxlength' => true]) ?>
+
+    <?= $form->field($model, 'status')->dropDownList($model->getStatus(1),['prompt'=>'请选择']) ?>
+
+
+<input type="hidden"/>
+    <div class="form-group">
+        <?= Html::submitButton($model->isNewRecord ? '添加' : '更新', ['class' => $model->isNewRecord ? 'btn btn-success' : 'btn btn-primary']) ?>
+    </div>
+
+    <?php ActiveForm::end(); ?>
+
+</div>
+<script type="text/javascript" src='//webapi.amap.com/maps?v=1.3&key=<?php echo Yii::$app->params['mapkey'];?>&plugin=AMap.ToolBar'></script>
+<!-- UI组件库 1.0 -->
+<script src="//webapi.amap.com/ui/1.0/main.js"></script>
+<?php  \common\widgets\JsBlock::begin();?>
+
+<script>
+    $(function(){
+        ajax_form('<?php  echo $model->formName();?>','<?php  echo \yii\helpers\Url::to(['index']);?>');
+    });
+
+    setTimeout(function(){
+
+
+    AMapUI.loadUI(['misc/PositionPicker'], function(PositionPicker) {
+        var map = new AMap.Map('container', {
+            zoom: 16,
+            scrollWheel: false
+        })
+        var positionPicker = new PositionPicker({
+            mode: 'dragMarker',
+            map: map
+        });
+        AMap.plugin('AMap.Geocoder',function(){
+            var geocoder = new AMap.Geocoder({
+
+            });
+        $("#customer-address").blur(function(e){
+            var address = $(this).val();
+            geocoder.getLocation(address,function(status,result){
+
+                console.log(result)
+                if(status=='complete'&&result.geocodes.length){
+                    console.log(result.geocodes[0].location)
+                    positionPicker.start(result.geocodes[0].location);
+
+                }
+            })
+        });
+
+            $("#customer-address").blur();
+
+
+        });
+
+        positionPicker.on('success', function(positionResult) {
+
+            console.log(positionResult);
+            var lng =positionResult.position.lng,lat=positionResult.position.lat,address= positionResult.address;
+            $("#customer-longitude").val(lng);
+            $("#customer-latitude").val(lat);
+//            $("#customer-address").val(address);
+
+        });
+        positionPicker.on('fail', function(positionResult) {
+            $("#customer-longitude").val('');
+            $("#customer-latitude").val('');
+        });
+
+        positionPicker.start();
+        map.panBy(0, 1);
+
+        map.addControl(new AMap.ToolBar({
+            liteStyle: true
+        }))
+    });
+    },500)
+</script>
+<?php  \common\widgets\JsBlock::end();?>
+
+

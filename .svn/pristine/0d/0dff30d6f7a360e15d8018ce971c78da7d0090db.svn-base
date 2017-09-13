@@ -1,0 +1,124 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 17/6/6
+ * Time: 下午5:32
+ */
+
+namespace console\controllers;
+
+
+use app\admin\models\Admin;
+use app\admin\models\Notice;
+use app\admin\models\Xiaoqu;
+use app\base\lib\umeng\Push;
+use app\base\lib\Utils;
+use yii\base\Exception;
+use yii\console\Controller;
+use yii\helpers\ArrayHelper;
+
+class PushController extends Controller
+{
+    public $defaultAction = 'run';
+
+    public function actionRun($id)
+    {
+        error_reporting(E_ALL ^ E_NOTICE);
+
+        $notice = Notice::findOne($id);
+        if ($notice->is_send == 0 && $notice->status == 1) {
+            $push = new Push(\Yii::$app->params['umengAppKey'], \Yii::$app->params['umengAppMasterSecret']);
+
+            $data = [];
+            if ($notice->reason == 1) {
+                $data['title'] = "由于我公司将对{$notice->getLineName()}线路检修，将在下列时间对您所在的小区实施停电";
+                $data['start_time'] = "停电开始时间：{$notice->start_time}";
+                $data['end_time'] = "停电结束时间：{$notice->end_time}";
+            } else {
+                $txt = $notice->getReason()[$notice->reason];
+                $data['title'] = "由于{$txt}，我公司将临时对{$notice->getLineName()}线路进行故障抢修，将在下列时间对您所在的小区实施停电";
+                $data['start_time'] = "停电开始时间：{$notice->start_time}";
+                $data['end_time'] = "停电结束时间：{$notice->end_time}";
+            }
+            $data['range'] = $notice->getXiaoqu();
+            $data['info'] = $notice->info;
+            $data['created_at'] = date('Y年m月d日', $notice->created_at);
+            $line = ArrayHelper::map(Xiaoqu::find()->select('id,name')->
+            where(['cid' => $notice->cid, 'line_id4' => ArrayHelper::map($notice->line, 'id', 'line_id4')])
+                ->asArray()->all(), 'id', 'name');
+            $where = ['cid' => $notice->cid, 'xiaoqu_id' => array_keys($line)];
+            $count = Admin::find()->select('device_token')->where($where)->andWhere(['NOT', ['device_token' => null]])->count();
+            $num = ceil($count / 500);
+            for ($i = 0; $i < $num; $i++) {
+                $admin = Admin::find()->select('id,device_token')->where($where)->andWhere(['NOT', ['device_token' => null]])->offset($i)->limit(500)->asArray()->all();
+                $device_tokenArr = ArrayHelper::map($admin, 'id', 'device_token');
+                $device_tokens = implode(',', $device_tokenArr);
+                $push->sendMessage($device_tokens, $data);
+            }
+
+            $where = ['cid' => $notice->cid, 'group_id' => 4];
+            $badmin = Admin::find()->select('id,device_token')->where($where)->andWhere(['NOT', ['device_token' => null]])->asArray()->all();
+            $bdevice_tokenArr = ArrayHelper::map($badmin, 'id', 'device_token');
+            $bdevice_tokens = implode(',', $bdevice_tokenArr);
+            $push->sendMessage($bdevice_tokens, $data);
+            Notice::updateAll(['is_send' => 1], ['id' => $notice->id]);
+
+        }
+
+
+    }
+
+    public function actionRemind($id)
+    {
+
+        error_reporting(E_ALL ^ E_NOTICE);
+        $notice = Notice::findOne($id);
+
+        if ($notice->status == 0 && $notice->is_remind == 0) {
+            $where = ['cid' => $notice->cid, 'group_id' => [4, 6]];
+            $admin = Admin::find()->select('id,device_token')
+                ->where($where)->andWhere(['NOT', ['device_token' => null]])->asArray()->all();
+            if ($admin) {
+                $device_tokenArr = ArrayHelper::map($admin, 'id', 'device_token');
+                $device_tokens = implode(',', $device_tokenArr);
+                $push = new Push('59527f01aed1793751000ba3', 'x5bk79nj8vaytvsq6okjp70raut9hvyx');
+                $push->sendListcast($device_tokens);
+                Notice::updateAll(['is_remind' => 1], ['id' => $id]);
+            }
+
+        }
+
+    }
+
+
+    public function actionRemind2($id)
+    {
+
+        error_reporting(E_ALL ^ E_NOTICE);
+        $notice = Notice::findOne($id);
+        $title=$notice->status==2?'您的停电服务信息被驳回':'您的供电服务信息被驳回';
+        if ($notice->user_id > 0) {
+            $admin = Admin::findOne($notice->user_id);
+            if ($admin && $admin->device_token) {
+                $push = new Push('59527f01aed1793751000ba3', 'x5bk79nj8vaytvsq6okjp70raut9hvyx');
+                $push->sendListcast($admin->device_token,$title);
+            }
+
+        }
+
+    }
+
+
+    public function actionTest()
+    {
+        $parts = \Yii::$app->createController('/push/run');
+
+        if (is_array($parts)) {
+            $res = \Yii::$app->runAction('/push/run', [5]);
+            var_dump($res);
+        }
+
+    }
+
+}

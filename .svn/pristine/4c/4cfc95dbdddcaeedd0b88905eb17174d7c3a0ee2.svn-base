@@ -1,0 +1,43 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 17/7/19
+ * Time: 下午1:57
+ */
+
+namespace app\home\api;
+
+
+use app\api\components\BaseApi;
+
+
+use app\home\models\Order;
+
+
+class setOrder extends BaseApi
+{
+    protected function rules()
+    {
+        return [
+            'order_id' => ['required' => true, 'name' => '订单号'],
+            'type' => ['name' => '类型', "info" => "1到达 2离开"],
+
+        ];
+    }
+
+    public function run()
+    {
+        $params = $this->params;
+
+        if ($params['type'] == 1) {
+            Order::updateAll(['start_time' => time()], ['id' => $params['order_id']]);
+        } else {
+            Order::updateAll(['end_time' => time(),'status'=>2], ['id' => $params['order_id']]);
+        }
+
+        return $this->formatData();
+
+    }
+
+}

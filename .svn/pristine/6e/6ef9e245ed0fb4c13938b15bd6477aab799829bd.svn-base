@@ -1,0 +1,45 @@
+<?php
+
+use yii\helpers\Html;
+use yii\widgets\ActiveForm;
+
+/* @var $this yii\web\View */
+/* @var $model app\home\models\searchs\DriverSearch */
+/* @var $form yii\widgets\ActiveForm */
+?>
+
+<div class="driver-search">
+
+    <?php $form = ActiveForm::begin([
+        'action' => ['index'],
+        'method' => 'get','options' => ['data-pjax' => true]
+    ]); ?>
+    <div class="row">
+
+
+    <div class='col-xs-2'><?= $form->field($model, 'username') ?></div>
+
+    <div class='col-xs-2'><?= $form->field($model, 'phone') ?></div>
+
+    <div class='col-xs-2'><?= $form->field($model, 'car_type') ?></div>
+
+    <div class='col-xs-2'><?php // echo $form->field($model, 'car_number') ?></div>
+
+    <div class='col-xs-2'><?php // echo $form->field($model, 'inner_size') ?></div>
+
+    <div class='col-xs-2'><?php // echo $form->field($model, 'outer_size') ?></div>
+
+    <div class='col-xs-2'><?php // echo $form->field($model, 'limit_days') ?></div>
+
+    <div class='col-xs-2'><?php // echo $form->field($model, 'created_at') ?></div>
+
+        </div>
+    <div class="form-group">
+        <?= Html::submitButton('搜索', ['class' => 'btn btn-primary search-btn']) ?>
+        <?= Html::resetButton('重置', ['class' => 'btn btn-default']) ?>
+        <?= Html::a('添加司机', ['create'], ['class' => 'btn btn-success']) ?>
+    </div>
+
+    <?php ActiveForm::end(); ?>
+
+</div>

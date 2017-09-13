@@ -1,0 +1,71 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 17/4/19
+ * Time: 下午6:44
+ */
+
+namespace app\admin\api;
+
+
+use app\admin\models\Admin;
+use app\admin\models\Line;
+use app\admin\models\Notice;
+use app\admin\models\NoticeLine;
+use app\api\components\BaseApi;
+use app\base\lib\Utils;
+use app\base\models\Config;
+use yii\base\Exception;
+
+class ViewNotice extends BaseApi
+{
+    protected function rules()
+    {
+        return [
+            'access_token' => ['required' => true, 'name' => 'access_token', "message" => "access_token是必需的"],
+            'notice_id' => ['required' => true, 'name' => '通知id'],
+        ];
+    }
+
+    public function run()
+    {
+        $transaction = \Yii::$app->db->beginTransaction();
+        try {
+
+            $params = $this->params;
+
+            $admin = new Admin();
+            $user = $admin->getUserByToken($params['access_token']);
+            if (!$user) {
+                return $this->formatData([], 1005, 'token不正确!');
+            }
+
+
+            $notice = Notice::findOne($params['notice_id']);
+
+            $data = [];
+            if ($notice->reason == 1) {
+                $data['title'] = "由于我公司将对{$notice->getLineName()}线路检修，将在下列时间对您所在的小区实施停电";
+                $data['start_time'] = "停电开始时间：{$notice->start_time}";
+                $data['end_time'] = "停电开始时间：{$notice->end_time}";
+            } else {
+                $txt = $notice->getReason()[$notice->reason];
+                $data['title'] = "由于{$txt}，我公司将临时对{$notice->getLineName()}线路进行故障抢修，将在下列时间对您所在的小区实施停电";
+                $data['start_time'] = "停电开始时间：{$notice->start_time}";
+                $data['end_time'] = "停电开始时间：{$notice->end_time}";
+            }
+            $data['info'] = $notice->info;
+            $data['range'] = $notice->getXiaoqu();
+            $data['created_at'] = date('Y年m月d日',$notice->created_at);
+            return $this->formatData($data);
+
+        } catch (Exception $e) {
+            $transaction->rollBack();
+            return $this->formatData([], 1002, $e->getMessage());
+        }
+
+
+    }
+
+}

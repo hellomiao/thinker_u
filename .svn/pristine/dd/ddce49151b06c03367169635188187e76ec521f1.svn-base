@@ -1,0 +1,142 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 17/4/24
+ * Time: 上午10:39
+ */
+
+namespace console\controllers;
+
+use app\base\lib\swoole\SwooleService;
+use Yii;
+use app\base\lib\swoole\Service;
+use yii\base\Exception;
+use yii\console\Controller;
+use yii\helpers\ArrayHelper;
+
+class SwooleController extends Controller
+{
+
+    /**
+     * 存储swooleAsync配置中的所有配置项
+     * @var array
+     */
+    private $settings = [];
+    /**
+     * 默认controller
+     * @var string
+     */
+    public $defaultAction = 'run';
+
+    /**
+     * 初始化
+     * @return [type] [description]
+     */
+    public function init() {
+        parent::init();
+        $this->prepareSettings();
+    }
+
+    public function actionIndex(){
+
+        //创建Server对象，监听 127.0.0.1:9503端口，类型为SWOOLE_SOCK_UDP
+        $serv = new \swoole_server("127.0.0.1", 9503, SWOOLE_BASE, SWOOLE_SOCK_UDP);
+        $serv->set([
+            'worker_num' => 4, # 4个worker
+            'task_worker_num' => 20, # 4个task
+            'deamonize' => true,
+        ]);
+//监听数据发送事件
+        $serv->on('Packet', function ($serv, $data, $clientInfo) {
+            $serv->sendto($clientInfo['address'], $clientInfo['port'], "Server ".$data);
+            var_dump($clientInfo, $data);
+            //把任务丢给task
+            $serv->task($data);
+        });
+        $serv->on('Task', function ($serv, $task_id, $from_id, $data) {
+            echo "This Task {$task_id} from Worker {$from_id}\n";
+            echo "Data: {$data}\n";
+            //模拟慢io查询、
+            for($i = 0 ; $i < 20 ; $i ++ ) {
+                sleep(1);
+                echo "Task {$task_id} Handle {$i} times...\n";
+            }
+            //return 数据 给 Finish
+            return "Task {$task_id}'s result";
+        });
+
+        $serv->on('Finish', function ($serv,$task_id, $data) {
+            echo "Task {$task_id} finish\n";
+            echo "Result: {$data}\n";
+        });
+//启动服务器
+        $serv->start();
+
+    }
+
+    public function actionClient(){
+        $client = new \swoole_client(SWOOLE_SOCK_UDP);
+        $client->connect('47.93.56.147', 9503, 1);//47.93.56.147
+        $bin = hex2bin('aa0463343563633062643532663666316336424242420207e1000600160012001e0035bb');
+        echo $bin;
+        $client->send($bin);
+        $message = $client->recv();
+        echo "Get Message From Server:$message\n";
+    }
+
+    protected function prepareSettings()
+    {
+        $runtimePath = Yii::$app->getRuntimePath();
+        $this->settings = [
+            'host'              => '0.0.0.0',
+            'port'              => '9503',
+            'process_name'      => 'swooleServ',
+            'daemonize'         => 1,
+            'worker_num'        => '4',
+            'task_worker_num'   => '4',
+            'task_max_request'  => '10000',
+            'pidfile'         => $runtimePath.'/swoole/tmp/swoole.pid',
+            'log_dir'           => $runtimePath.'/swoole/log',
+            'task_tmpdir'       => $runtimePath.'/swoole/task',
+            'log_file'          => $runtimePath.'/swoole/log/swoole.log',
+            'log_size'          => 204800000,
+        ];
+
+        try {
+            $settings = Yii::$app->params['swooleAsync'];
+        }catch (Exceptionn $e) {
+            throw new Exception('Empty param swoole params. ',8);
+        }
+        $this->settings = ArrayHelper::merge(
+            $settings,
+            $this->settings
+        );
+    }
+
+    public function actionRun($mode='start'){
+        $swooleService = new SwooleService($this->settings,Yii::$app);
+        switch ($mode) {
+            case 'start':
+                $swooleService->serviceStart();
+                break;
+            case 'restart':
+                $swooleService->serviceStop();
+                $swooleService->serviceStart();
+                break;
+            case 'stop':
+                $swooleService->serviceStop();
+                break;
+            case 'stats':
+                $swooleService->serviceStats();
+                break;
+            case 'list':
+                $swooleService->serviceList();
+                break;
+            default:
+                exit('error:参数错误');
+                break;
+        }
+    }
+
+}

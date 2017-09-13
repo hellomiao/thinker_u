@@ -1,0 +1,42 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 17/7/24
+ * Time: 下午1:53
+ */
+ini_set('date.timezone', 'Asia/Chongqing');
+//获取2点之间的距离
+function distance($l1,$l2,$radius = 6378.137)
+{
+    $lat1=$l1[1];
+    $lon1=$l1[0];
+    $lat2=$l2[1];
+    $lon2=$l2[0];
+    $rad = floatval(M_PI / 180.0);
+
+    $lat1 = floatval($lat1) * $rad;
+    $lon1 = floatval($lon1) * $rad;
+    $lat2 = floatval($lat2) * $rad;
+    $lon2 = floatval($lon2) * $rad;
+
+    $theta = $lon2 - $lon1;
+
+    $dist = acos(sin($lat1) * sin($lat2) +
+        cos($lat1) * cos($lat2) * cos($theta)
+    );
+
+    if ($dist < 0 ) {
+        $dist += M_PI;
+    }
+
+    return $dist = $dist * $radius;
+}
+
+
+$lon1 = ['104.067841','30.551910'];
+$lon2 = ['104.067833','30.551916'];
+
+
+
+echo md5(md5('123456') . '2166e5');

@@ -1,0 +1,11 @@
+<?php
+namespace app\base\lib\umeng\notification\ios;
+
+use app\base\lib\umeng\notification\IOSNotification;
+
+class IOSBroadcast extends IOSNotification {
+	function  __construct() {
+		parent::__construct();
+		$this->data["type"] = "broadcast";
+	}
+}

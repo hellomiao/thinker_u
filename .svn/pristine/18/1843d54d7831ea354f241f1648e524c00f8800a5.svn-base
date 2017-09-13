@@ -1,0 +1,17 @@
+<?php
+return [
+    'components' => [
+        'db' => [
+            'class' => 'yii\db\Connection',
+            'dsn' => 'mysql:host=localhost;dbname=freight',
+            'username' => 'root',
+            'password' => '123456',
+            'charset' => 'utf8',
+        ],
+        'request' => [
+            // !!! insert a secret key in the following (if it is empty) - this is required by cookie validation
+            'cookieValidationKey' => 'cc8b6693b910598fb8efb811090fe905',
+        ],
+
+    ],
+];

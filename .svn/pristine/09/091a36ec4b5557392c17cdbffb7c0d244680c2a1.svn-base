@@ -1,0 +1,41 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 17/4/19
+ * Time: 下午6:44
+ */
+
+namespace app\admin\api;
+
+
+use app\admin\models\Admin;
+use app\admin\models\Notice;
+use app\admin\models\NoticeReason;
+use app\api\components\BaseApi;
+use app\base\models\Config;
+
+class BaseNotice extends BaseApi
+{
+    protected function rules()
+    {
+        return [
+            'access_token' => ['required' => true, 'name' => 'access_token', "message" => "access_token是必需的"],
+        ];
+    }
+
+    public function run()
+    {
+        $params = $this->params;
+        $admin = new Admin();
+        $user = $admin->getUserByToken($params['access_token']);
+        if (!$user) {
+            return $this->formatData([], 1005, 'token不正确!');
+        }
+
+        $notice = new Notice();
+        return $this->formatData(['reason'=>NoticeReason::find()->asArray()->all(),'tpl'=>$notice->getTpl()]);
+
+    }
+
+}

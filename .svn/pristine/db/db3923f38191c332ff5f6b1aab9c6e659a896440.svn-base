@@ -1,0 +1,36 @@
+<?php
+
+use yii\helpers\Html;
+use yii\widgets\ActiveForm;
+
+/* @var $this yii\web\View */
+/* @var $model app\home\models\searchs\CustomerSearch */
+/* @var $form yii\widgets\ActiveForm */
+?>
+
+<div class="customer-search">
+
+    <?php $form = ActiveForm::begin([
+        'action' => ['index'],
+        'method' => 'get','options' => ['data-pjax' => true]
+    ]); ?>
+
+    <div class="row">
+        <div class='col-xs-3'>
+    <?= $form->field($model, 'keywords')->label(false)->textInput(['placeholder'=>'请输入客户编码或者名称']) ?>
+    </div>
+
+
+</div>
+
+
+
+    <div class="form-group">
+        <?= Html::submitButton('搜索', ['class' => 'btn btn-primary']) ?>
+        <?= Html::resetButton('重置', ['class' => 'btn btn-default reset-btn']) ?>
+        <?= Html::a('添加客户', ['create'], ['class' => 'btn btn-success']) ?>
+    </div>
+
+    <?php ActiveForm::end(); ?>
+
+</div>

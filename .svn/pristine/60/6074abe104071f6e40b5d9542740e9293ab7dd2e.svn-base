@@ -1,0 +1,284 @@
+<?php
+
+namespace app\home\controllers;
+
+use app\home\models\Customer;
+use Yii;
+use app\home\models\Order;
+use app\home\models\searchs\OrderSearch;
+use app\base\lib\Utils;
+use yii\base\Exception;
+use yii\web\UploadedFile;
+use yii\widgets\ActiveForm;
+use app\home\components\BaseController;
+use yii\web\NotFoundHttpException;
+use yii\filters\VerbFilter;
+
+/**
+ * OrderController implements the CRUD actions for Order model.
+ */
+class OrderController extends BaseController
+{
+
+    public $enableCsrfValidation=false;
+
+    /**
+     * Lists all Order models.
+     * @return mixed
+     */
+    public function actionIndex()
+    {
+        $searchModel = new OrderSearch();
+        $dataProvider = $searchModel->search(Yii::$app->request->queryParams);
+
+        return $this->render('index', [
+            'searchModel' => $searchModel,
+            'dataProvider' => $dataProvider,
+        ]);
+    }
+
+    /**
+     * Displays a single Order model.
+     * @param integer $id
+     * @return mixed
+     */
+    public function actionView($id)
+    {
+        return $this->render('view', [
+            'model' => $this->findModel($id),
+        ]);
+    }
+
+    /**
+     * Creates a new Order model.
+     * If creation is successful, the browser will be redirected to the 'view' page.
+     * @return mixed
+     */
+    public function actionCreate()
+    {
+        $model = new Order();
+
+        if ($model->load(Yii::$app->request->post())) {
+            $ret=ActiveForm::validate($model);
+           if (!$this->commit) {
+                return $ret;
+            }else{
+               $model->platform_id = $this->platform_id;
+               $model->user_id = $this->uid;
+               $model->delivery_times = strtotime($model->delivery_date.' '.$model->delivery_time);
+                $model->save();
+                $msg ="添加订单[{$model->id}]成功";
+                Utils::adminLog('create',$msg);
+                return ['status'=>true,'message'=>$msg];
+             }
+         } else {
+              return $this->render('create', [
+                 'model' => $model,
+              ]);
+         }
+    }
+
+    /**
+     * Updates an existing Order model.
+     * If update is successful, the browser will be redirected to the 'view' page.
+     * @param integer $id
+     * @return mixed
+     */
+    public function actionUpdate($id)
+    {
+        $model = $this->findModel($id);
+
+        if ($model->load(Yii::$app->request->post())) {
+             $ret=ActiveForm::validate($model);
+             if (!$this->commit) {
+                 return $ret;
+             }else{
+                 //$model->user_id = $this->uid;
+                 $model->delivery_times = strtotime($model->delivery_date.' '.$model->delivery_time);
+                $model->save();
+                $msg ="编辑订单[{$model->id}]成功";
+                Utils::adminLog('update',$msg);
+                return ['status'=>true,'message'=>$msg];
+            }
+        } else {
+            return $this->render('update', [
+                'model' => $model,
+           ]);
+        }
+    }
+
+    /**
+     * Deletes an existing Order model.
+     * If deletion is successful, the browser will be redirected to the 'index' page.
+     * @param integer $id
+     * @return mixed
+     */
+    public function actionDelete($id)
+    {
+        $model=$this->findModel($id);
+        $model->delete();
+        $msg ="删除订单[{$model->id}]成功";
+        Utils::adminLog('delete',$msg);
+        return ['status'=>true,'message'=>$msg];
+    }
+
+    /**
+     * Finds the Order model based on its primary key value.
+     * If the model is not found, a 404 HTTP exception will be thrown.
+     * @param integer $id
+     * @return Order the loaded model
+     * @throws NotFoundHttpException if the model cannot be found
+     */
+    protected function findModel($id)
+    {
+        if (($model = Order::findOne($id)) !== null) {
+            return $model;
+        } else {
+            throw new NotFoundHttpException('The requested page does not exist.');
+        }
+    }
+
+    public function actionExport()
+    {
+
+
+        set_time_limit(0);
+        header("Content-type:application/vnd.ms-excel;charset=UTF-8");
+        error_reporting(E_ALL);
+        $title = '货运订单';
+        $searchModel = new OrderSearch();
+        $dataProvider = $searchModel->search(Yii::$app->request->post());
+        $dataProvider->pagination=false;
+
+        $objPHPExcel = new \PHPExcel();
+// Set document properties
+        $objPHPExcel->getProperties()->setCreator("货运")
+            ->setLastModifiedBy($this->uflag)
+            ->setTitle($title)
+            ->setSubject($title)
+            ->setDescription($title)
+            ->setKeywords($title)
+            ->setCategory($title);
+// Add some data
+        $i = 1;
+        $objPHPExcel->setActiveSheetIndex(0)
+            ->setCellValue('A' . $i, 'ID')
+            ->setCellValue('B' . $i, '客户编号')
+            ->setCellValue('C' . $i, '客户名称')
+            ->setCellValue('D' . $i, '送货数量')
+            ->setCellValue('E' . $i, '送货日期')
+            ->setCellValue('F' . $i, '配送时间')
+            ->setCellValue('G' . $i, '备注')
+            ->setCellValue('H' . $i, '状态')
+            ->setCellValue('I' . $i, '生成时间');
+
+
+
+        $i=2;
+        foreach ($dataProvider->models as $k => $v) {
+
+            $objPHPExcel->setActiveSheetIndex(0)
+                ->setCellValue('A' . $i, $v->id)
+                ->setCellValue('B' . $i, $v->customer->code)
+                ->setCellValue('C' . $i, $v->customer->name)
+                ->setCellValue('D' . $i, $v->num)
+                ->setCellValue('E' . $i, $v->delivery_date)
+                ->setCellValue('F' . $i, $v->delivery_time)
+                ->setCellValue('G' . $i, $v->note)
+                ->setCellValue('H' . $i, $v->getStatus())
+                ->setCellValue('I' . $i, date("Y-m-d H:i:s", $v->created_at));
+
+            $i++;
+
+        }
+
+
+// Rename worksheet
+        $objPHPExcel->getActiveSheet()->setTitle('Simple');
+// Set active sheet index to the first sheet, so Excel opens this as the first sheet
+        $objPHPExcel->setActiveSheetIndex(0);
+        ob_end_clean();//清除缓冲区,避免乱码
+// Redirect output to a client’s web browser (Excel2007)
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $title . '.xlsx"');
+        header('Cache-Control: max-age=0');
+// If you're serving to IE 9, then the following may be needed
+        header('Cache-Control: max-age=1');
+// If you're serving to IE over SSL, then the following may be needed
+        header('Expires: Mon, 26 Jul 1997 05:00:00 GMT'); // Date in the past
+        header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT'); // always modified
+        header('Cache-Control: cache, must-revalidate'); // HTTP/1.1
+        header('Pragma: public'); // HTTP/1.0
+        $objWriter = \PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel2007');
+        $objWriter->save('php://output');
+        exit;
+    }
+
+    //导入
+    public function actionImport()
+    {
+
+        try {
+            ini_set('date.timezone', 'Asia/Chongqing');
+            set_time_limit(0);
+            ini_set('memory_limit', '128M');
+            $file = UploadedFile::getInstanceByName('excel');
+            if(!$file){
+                throw new Exception('请选择文件');
+            }
+            $directory = \Yii::getAlias("@webroot/static/doc") . DIRECTORY_SEPARATOR;
+            if (!is_dir($directory)) {
+                mkdir($directory, 0755, true);
+            }
+            $fileName = uniqid(time()) . '.' . $file->getExtension();
+            $filePath = $directory . $fileName;
+            if ($file->saveAs($filePath)) {
+                $data = Utils::readExcel($filePath);
+                $insert = [];
+
+
+                foreach ($data as $key => $val) {
+
+
+                    if (count($val) < 6) {
+
+                        throw new Exception('excel列数不正确,请检查!');
+                    }
+
+                    if ($val[0] == '') {
+                        throw new Exception('客户编号不能为空请检查');
+                    }
+
+                    $customer = Customer::find()->where(['code' => $val[0]])->one();
+
+                    if ($customer) {
+                        $insert[$key]['platform_id'] = $this->platform_id;
+                        $insert[$key]['cid'] = $customer->id;
+                        $insert[$key]['num'] = $val[2];
+                        $insert[$key]['delivery_date'] =gmdate('Y-m-d', intval(($val[3] - 25569) * 3600 * 24));
+                        $insert[$key]['delivery_time'] =gmdate('H:i', intval(($val[4] - 25569) * 3600 * 24));
+                        $insert[$key]['note'] = $val[5];
+                        $insert[$key]['created_at'] = time();
+                    }
+                }
+
+                if (!empty($insert)) {
+
+                    Yii::$app->db->createCommand()->batchInsert(Order::tableName(), ['platform_id','cid', 'num', 'delivery_date',
+                        'delivery_time','note', 'created_at'], $insert)->execute();
+                    unlink($filePath);
+
+                }else{
+                    return ['status' => true, 'message' => '没有可用订单导入'];
+                }
+                return ['status' => true, 'message' => '导入成功'];
+            }
+
+
+        } catch (Exception $e) {
+//            var_dump($e->getMessage());
+            return ['status' => false, 'message' => $e->getMessage()];
+        }
+
+    }
+}

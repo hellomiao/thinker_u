@@ -1,0 +1,9 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 17/7/24
+ * Time: 下午1:53
+ */
+ini_set('date.timezone', 'Asia/Chongqing');
+echo date("w");

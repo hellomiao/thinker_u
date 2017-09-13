@@ -1,0 +1,54 @@
+<?php
+
+namespace app\home\models;
+
+use Yii;
+
+/**
+ * This is the model class for table "{{%delivery}}".
+ *
+ * @property integer $id
+ * @property integer $platform_id
+ * @property integer $driver_id
+ * @property double $distance
+ * @property integer $duration
+ * @property integer $num
+ * @property integer $created_at
+ */
+class Delivery extends \yii\db\ActiveRecord
+{
+    /**
+     * @inheritdoc
+     */
+    public static function tableName()
+    {
+        return '{{%delivery}}';
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function rules()
+    {
+        return [
+            [['platform_id', 'driver_id', 'duration', 'num', 'created_at'], 'integer'],
+            [['distance'], 'number'],
+        ];
+    }
+
+    /**
+     * @inheritdoc
+     */
+    public function attributeLabels()
+    {
+        return [
+            'id' => 'ID',
+            'platform_id' => '平台ID',
+            'driver_id' => 'Driver ID',
+            'distance' => '配送里程',
+            'duration' => '配送时长',
+            'num' => '送货总量',
+            'created_at' => 'Created At',
+        ];
+    }
+}

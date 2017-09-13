@@ -1,0 +1,148 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 16/4/29
+ * Time: 下午4:18
+ */
+
+namespace app\admin\components;
+
+
+
+use Yii;
+use yii\helpers\Html;
+
+
+/**
+ * ActionColumn is a column for the [[GridView]] widget that displays buttons for viewing and manipulating the items.
+ *
+ * To add an ActionColumn to the gridview, add it to the [[GridView::columns|columns]] configuration as follows:
+ *
+ * ```php
+ * 'columns' => [
+ *     // ...
+ *     [
+ *         'class' => ActionColumn::className(),
+ *         // you may configure additional properties here
+ *     ],
+ * ]
+ * ```
+ *
+ * @author Qiang Xue <qiang.xue@gmail.com>
+ * @since 2.0
+ */
+class ActionColumn extends \yii\grid\ActionColumn
+{
+    /**
+     * @var string the ID of the controller that should handle the actions specified here.
+     * If not set, it will use the currently active controller. This property is mainly used by
+     * [[urlCreator]] to create URLs for different actions. The value of this property will be prefixed
+     * to each action name to form the route of the action.
+     */
+    public $controller;
+    /**
+     * @var string the template used for composing each cell in the action column.
+     * Tokens enclosed within curly brackets are treated as controller action IDs (also called *button names*
+     * in the context of action column). They will be replaced by the corresponding button rendering callbacks
+     * specified in [[buttons]]. For example, the token `{view}` will be replaced by the result of
+     * the callback `buttons['view']`. If a callback cannot be found, the token will be replaced with an empty string.
+     *
+     * As an example, to only have the view, and update button you can add the ActionColumn to your GridView columns as follows:
+     *
+     * ```
+     * ['class' => 'yii\grid\ActionColumn', 'template' => '{view} {update}'],
+     * ```
+     *
+     * @see buttons
+     */
+    public $template = '{view} {update} {delete}';
+    /**
+     * @var array button rendering callbacks. The array keys are the button names (without curly brackets),
+     * and the values are the corresponding button rendering callbacks. The callbacks should use the following
+     * signature:
+     *
+     * ```php
+     * function ($url, $model, $key) {
+     *     // return the button HTML code
+     * }
+     * ```
+     *
+     * where `$url` is the URL that the column creates for the button, `$model` is the model object
+     * being rendered for the current row, and `$key` is the key of the model in the data provider array.
+     *
+     * You can add further conditions to the button, for example only display it, when the model is
+     * editable (here assuming you have a status field that indicates that):
+     *
+     * ```php
+     * [
+     *     'update' => function ($url, $model, $key) {
+     *         return $model->status === 'editable' ? Html::a('Update', $url) : '';
+     *     },
+     * ],
+     * ```
+     */
+    public $buttons = [];
+    /**
+     * @var callable a callback that creates a button URL using the specified model information.
+     * The signature of the callback should be the same as that of [[createUrl()]].
+     * If this property is not set, button URLs will be created using [[createUrl()]].
+     */
+    public $urlCreator;
+    /**
+     * @var array html options to be applied to the [[initDefaultButtons()|default buttons]].
+     * @since 2.0.4
+     */
+    public $buttonOptions = [];
+
+
+    /**
+     * @inheritdoc
+     */
+    public function init()
+    {
+        parent::init();
+        $this->initDefaultButtons();
+    }
+
+    /**
+     * Initializes the default button rendering callbacks.
+     */
+    protected function initDefaultButtons()
+    {
+        if (!isset($this->buttons['view'])) {
+            $this->buttons['view'] = function ($url, $model, $key) {
+                $options = array_merge([
+                    'title' => Yii::t('yii', 'View'),
+                    'aria-label' => Yii::t('yii', 'View'),
+                    'class' => 'btn btn-xs bg-aqua',
+                    'style' => 'width:40px'
+                ], $this->buttonOptions);
+                return Html::a('<span class="fa fa-eye"></span>', $url, $options);
+            };
+        }
+        if (!isset($this->buttons['update'])) {
+            $this->buttons['update'] = function ($url, $model, $key) {
+                $options = array_merge([
+                    'title' => Yii::t('yii', 'Update'),
+                    'aria-label' => Yii::t('yii', 'Update'),
+                    'class' => 'btn btn-xs bg-green',
+                    'style' => 'width:40px'
+                ], $this->buttonOptions);
+                return Html::a('<span class="fa fa-edit"></span>', $url, $options);
+            };
+        }
+        if (!isset($this->buttons['delete'])) {
+            $this->buttons['delete'] = function ($url, $model, $key) {
+                $options = array_merge([
+                    'title' => '删除',
+                    'aria-label' => Yii::t('yii', 'Delete'),
+                    'class' => 'btn btn-xs bg-red',
+                    'style' => 'width:40px'
+                ], $this->buttonOptions);
+                return Html::a('<span class="fa fa-remove"></span>', $url, $options);
+            };
+        }
+    }
+
+}

@@ -1,0 +1,75 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 17/6/6
+ * Time: 下午5:32
+ */
+
+namespace console\controllers;
+
+
+use app\admin\models\Admin;
+use app\admin\models\Notice;
+use app\admin\models\Xiaoqu;
+use app\base\lib\umeng\Push;
+use app\base\lib\Utils;
+use app\home\models\Delivery;
+use app\home\models\DeliveryLocations;
+use app\home\models\DriverClockList;
+use yii\base\Exception;
+use yii\console\Controller;
+use yii\helpers\ArrayHelper;
+
+class TaskController extends Controller
+{
+    public $defaultAction = 'run';
+
+    public function actionRun()
+    {
+        error_reporting(E_ALL ^ E_NOTICE);
+
+        $date = date("Y-m-d", strtotime("-1 days"));
+
+        $dids = Delivery::find()->select('id,driver_id,platform_id')->where(['delivery_date' => $date])->asArray()->all();
+
+        foreach ($dids as $v) {
+            $distance = 0;
+            $total = DeliveryLocations::find()->where(['delivery_id' => $v['id']])->count();
+            for ($i = 0; $i < $total - 1; $i++) {
+
+                $list = DeliveryLocations::find()
+                    ->select('longitude,latitude')->where(['delivery_id' => $v['id']])
+                    ->offset($i)->limit(2)->asArray()->all();
+                $l1[0] = $list[0]['longitude'];
+                $l1[1] = $list[0]['latitude'];
+                $l2[0] = $list[1]['longitude'];
+                $l2[1] = $list[1]['latitude'];
+                //var_dump($list);
+                $distance += Utils::distance($l1, $l2);
+
+            }
+
+            $min = DeliveryLocations::find()->select('created_at')
+                ->where(['delivery_id' => $v['id']])->orderBy('created_at asc')->asArray()->one();
+
+            $max = DeliveryLocations::find()->select('created_at')
+                ->where(['delivery_id' => $v['id']])->orderBy('created_at desc')->asArray()->one();
+
+            $real_duration = $max['created_at'] - $min['created_at'];
+
+            $real_distance = round($distance, 2);
+
+            Delivery::updateAll(['real_distance' => $real_distance, 'real_duration' => $real_duration], ['id' => $v['id']]);
+
+            DriverClockList::updateAll(['distance' => $real_distance, 'duration' => $real_duration],
+                ['platform_id' => $v['platform_id'], 'clock_date' => $date, 'driver_id' => $v['driver_id']]);
+
+
+        }
+
+
+    }
+
+
+}

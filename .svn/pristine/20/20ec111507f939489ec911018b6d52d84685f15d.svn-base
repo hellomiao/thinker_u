@@ -1,0 +1,53 @@
+<?php
+
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 16/3/23
+ * Time: 下午2:59
+ */
+namespace app\api\controllers;
+
+use yii\base\Exception;
+use yii\web\UploadedFile;
+use yii;
+
+
+class UploadController extends yii\base\Controller
+{
+
+
+
+
+    public function actionIndex()
+    {
+        header('Content-Type:application/json;charset=utf-8');
+        try {
+            $post = Yii::$app->request->post();
+            $type = $post['type'];
+            $file = UploadedFile::getInstanceByName($post['filename']);
+            $dir = date("YmdHis");
+            $directory = \Yii::getAlias("@webroot/static/{$type}") . DIRECTORY_SEPARATOR . $dir . DIRECTORY_SEPARATOR;
+            if (!is_dir($directory)) {
+                mkdir($directory, 0755, true);
+            }
+            $fileName = uniqid(time()) . '.' . $file->getExtension();
+            $filePath = $directory . $fileName;
+            if ($file->saveAs($filePath)) {
+                $url = \Yii::getAlias("@web/static/{$type}") . '/' . $dir . '/' . $fileName;
+                exit(json_encode(['ok' => false,
+                    'error' => '', 'servertime' => time(), 'path' => $url], JSON_UNESCAPED_UNICODE));
+
+            } else {
+                throw  new Exception('上传异常');
+            }
+        } catch (Exception $e) {
+            exit(json_encode(['ok' => false,
+                'error' => $e->getMessage(),
+                'errorid' => $e->getCode(),
+                'servertime' => time()], JSON_UNESCAPED_UNICODE));
+        }
+    }
+
+
+}

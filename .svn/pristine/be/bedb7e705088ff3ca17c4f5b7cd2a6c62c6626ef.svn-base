@@ -1,0 +1,8 @@
+<script src="https://cdn.bootcss.com/jquery/3.2.1/jquery.min.js"></script>
+<script>
+    var api_url ='<?php echo \yii\helpers\Url::to(['/ajax/api']);?>';
+    $.post(api_url+'/customer',{platform_id:1,keywords:"A11233"},function(json){
+        console.log(json)
+
+    },"JSON");
+</script>

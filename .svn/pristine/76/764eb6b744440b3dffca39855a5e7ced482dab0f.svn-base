@@ -1,0 +1,80 @@
+<?php
+
+use yii\helpers\Html;
+use yii\grid\GridView;
+
+/* @var $this yii\web\View */
+/* @var $searchModel app\home\models\searchs\OrderSearch */
+/* @var $dataProvider yii\data\ActiveDataProvider */
+use yii\widgets\ActiveForm;
+$this->title = '订单列表';
+$this->params['breadcrumbs'][] = $this->title;
+?>
+<section class="content">
+    <div class="row">
+        <div class="col-xs-12">
+
+
+            <div class="box">
+
+                <!-- /.box-header -->
+                <div class="box-body">
+
+
+
+                    <?php echo $this->render('_search',['model'=>$searchModel]);?>
+    <?= GridView::widget([
+        'dataProvider' => $dataProvider,
+
+        'columns' => [
+
+
+            'id',
+            [
+              'label'=>'操作员',
+                'value'=>function($data){
+                   return $data->user->realname?$data->user->realname:$data->user->username;
+                }
+
+            ],
+
+            'customer.code',
+            'customer.name',
+             'num',
+             'delivery_date',
+             'delivery_time',
+             'note',
+            // 'start_time:datetime',
+            // 'end_time:datetime',
+            // 'distance',
+            // 'duration',
+             [
+               'attribute'=>'status',
+                 'value'=>function($data){
+                     return $data->getStatus();
+                 }
+             ],
+            [
+                'attribute' => 'created_at',
+                'format' => ['date', 'php:Y-m-d H:i:s'],
+            ],
+
+
+            ['class' => 'app\admin\components\ActionColumn','template'=>'{update} {delete}', 'buttons' => [
+                'delete' => function ($url, $model) {
+                    if (in_array(1,$this->context->group_id)||in_array(4,$this->context->group_id)) {
+                        return Html::a('<span class="fa fa-remove"></span>', $url, [
+                            'title' => '删除',   'class' => 'btn btn-xs bg-red',
+                            'style' => 'width:40px'
+                        ]);
+                    } else {
+                        return null;
+                    }
+                }
+            ],],
+
+        ],
+    ]); ?>
+
+
+</div></div></div></div></section>

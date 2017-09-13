@@ -1,0 +1,71 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 17/6/7
+ * Time: 上午10:28
+ */
+
+namespace app\base\lib\umeng;
+
+
+use app\base\lib\umeng\notification\android\AndroidListcast;
+
+class Push
+{
+    protected $appkey = NULL;
+    protected $appMasterSecret = NULL;
+    protected $timestamp = NULL;
+    protected $validation_token = NULL;
+
+    function __construct($key, $secret)
+    {
+        $this->appkey = $key;
+        $this->appMasterSecret = $secret;
+        $this->timestamp = strval(time());
+    }
+
+    public function sendMessage($device_tokens, $data)
+    {
+        try {
+            $listcast = new AndroidListcast();
+            $listcast->setAppMasterSecret($this->appMasterSecret);
+            $listcast->setPredefinedKeyValue("appkey", $this->appkey);
+            $listcast->setPredefinedKeyValue("timestamp", $this->timestamp);
+            $listcast->setPredefinedKeyValue("device_tokens", $device_tokens);
+            $listcast->setPredefinedKeyValue("display_type", 'message');
+            $listcast->setPredefinedKeyValue("custom", json_encode($data));
+            $listcast->setPredefinedKeyValue("description", '停电通知');
+//            $listcast->setPredefinedKeyValue("expire_time", date("Y-m-d H:i:s",strtotime('+6 hours')));
+            $listcast->send();
+        } catch (Exception $e) {
+            print("Caught exception: " . $e->getMessage());
+        }
+
+    }
+
+    public function sendListcast($device_tokens,$title='您有新的供电服务信息需要审核') {
+        try {
+            $brocast = new AndroidListcast();
+            $brocast->setAppMasterSecret($this->appMasterSecret);
+            $brocast->setPredefinedKeyValue("appkey",           $this->appkey);
+            $brocast->setPredefinedKeyValue("timestamp",        $this->timestamp);
+            $brocast->setPredefinedKeyValue("device_tokens",    $device_tokens);
+            $brocast->setPredefinedKeyValue("ticker",           $title);
+            $brocast->setPredefinedKeyValue("title",            $title);
+            $brocast->setPredefinedKeyValue("text",             $title);
+            $brocast->setPredefinedKeyValue("after_open",       "com.bchd.manageapp.ui.activity.HomeActivity");
+            // Set 'production_mode' to 'false' if it's a test device.
+            // For how to register a test device, please see the developer doc.
+            $brocast->setPredefinedKeyValue("production_mode", "true");
+            // [optional]Set extra fields
+            $brocast->setExtraField("test", "helloworld");
+            print("Sending broadcast notification, please wait...\r\n");
+            $brocast->send();
+            print("Sent SUCCESS\r\n");
+        } catch (Exception $e) {
+            print("Caught exception: " . $e->getMessage());
+        }
+    }
+
+}

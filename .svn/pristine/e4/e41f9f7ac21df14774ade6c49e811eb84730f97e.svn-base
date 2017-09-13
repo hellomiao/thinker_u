@@ -1,0 +1,98 @@
+<?php
+
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 16/3/21
+ * Time: 下午4:05
+ */
+namespace app\home\controllers;
+
+
+use app\admin\models\PlatformUser;
+use app\base\lib\WaterMask;
+use app\home\components\BaseController;
+use app\home\models\LoginForm;
+use yii;
+
+use app\api\components;
+
+class DefaultController extends BaseController
+{
+    public function actions()
+    {
+
+        return [
+            'error' => [
+                'class' => 'yii\web\ErrorAction',
+            ],
+        ];
+    }
+
+
+    public function actionIndex()
+    {
+
+
+        return $this->render('index');
+    }
+
+    public function actionLogin()
+    {
+        $model = new LoginForm();
+//        $a = new Admin();
+//        echo $a->hashPassword('123456','251aab');
+        if ($model->load(Yii::$app->request->post()) && $model->login()) {
+            $this->redirect(['default/index']);
+        }
+
+        if (!Yii::$app->user->isGuest) {
+            $this->redirect(['default/index']);
+        }
+        return $this->render('login', ['model' => $model]);
+    }
+
+
+    public function actionLogout()
+    {
+
+        if (Yii::$app->user->logout(false)) {
+            $this->redirect(['/login']);
+        }
+    }
+
+    public function actionError()
+    {
+        return $this->render('error');
+    }
+
+    public function actionMap()
+    {
+        $platform_id = $this->platform_id;
+        $platuser = PlatformUser::findOne($platform_id);
+        return $this->renderAjax('map',['platform_id'=>$platform_id,'platuser'=>$platuser]);
+    }
+
+    public function actionTest(){
+        $filePath = \Yii::getAlias('@webroot/1.jpg');
+        $filePath1 = \Yii::getAlias('@webroot/2.jpg');
+        $info=getimagesize($filePath);
+        $w=$info[0];
+        $obj1 = new WaterMask($filePath);
+        $obj1->waterStr='四川省成都市郫都区阳光南路1000-61栋附23号靠近安靖紫荆花幼儿园';
+        $obj1->pos=1;
+        $obj1->waterTypeStr =true;
+        if($w<800) {
+            $obj1->fontSize = 16;
+        }else{
+            $obj1->fontSize = 24;
+        }
+        $obj1->fontColor =array(241,102,34);
+        $obj1->fontFile =\Yii::getAlias('@webroot/msyh.ttf');
+//                $obj->is_draw_rectangle =true;
+        $obj1->output_img = $filePath1;
+        $obj1->output();
+    }
+
+
+}

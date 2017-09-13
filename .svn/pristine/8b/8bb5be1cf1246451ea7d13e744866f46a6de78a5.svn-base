@@ -1,0 +1,59 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 17/4/19
+ * Time: 下午6:44
+ */
+
+namespace app\admin\api;
+
+
+use app\admin\models\Admin;
+use app\admin\models\Line;
+use app\api\components\BaseApi;
+use yii\helpers\ArrayHelper;
+
+
+class BaseLine extends BaseApi
+{
+    protected function rules()
+    {
+        return [
+            'access_token' => ['required' => true, 'name' => 'access_token', "message" => "access_token是必需的"],
+            'pid' => ['required' => true, 'name' => '父'],
+            'type' => ['name' => '类型'],
+        ];
+    }
+
+    public function run()
+    {
+        $params = $this->params;
+        $admin = new Admin();
+        $user = $admin->getUserByToken($params['access_token']);
+        if (!$user) {
+            return $this->formatData([], 1005, 'token不正确!');
+        }
+        $cid = $user->cid;
+
+        if ($params['type'] == 1) {
+            $line = new Line();
+            $model = $line->getList($cid, $params['pid']);
+            $data = [];
+            foreach ($model as $key => $val) {
+                $data[$key]['id'] = $key;
+                $data[$key]['name'] = $val;
+                $data[$key]['children'] =Line::find()->select('id,name')->where(['cid' => $cid, 'parent_id' => $key,'type'=>0])->asArray()->all();
+                $data[$key]['children_zb'] =Line::find()->select('id,name')->where(['cid' => $cid, 'parent_id' => $key,'type'=>1])->asArray()->all();
+            }
+            return $this->formatData(['list' => array_values($data)]);
+
+        } else {
+
+            $line = Line::find()->select('id,name')->where(['cid' => $cid, 'parent_id' => $params['pid']])->asArray()->all();
+            return $this->formatData(['list' => $line]);
+        }
+
+    }
+
+}

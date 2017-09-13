@@ -1,0 +1,66 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 17/7/19
+ * Time: 下午1:57
+ */
+
+namespace app\home\api;
+
+
+use app\api\components\BaseApi;
+use app\base\lib\Utils;
+use app\home\models\Delivery;
+use app\home\models\Driver;
+
+use app\home\models\Order;
+
+
+class GetOrder extends BaseApi
+{
+    protected function rules()
+    {
+        return [
+            'status' => ['name' => '状态', "info" => "1配送中 2已完成"],
+
+        ];
+    }
+
+    public function run()
+    {
+
+        $params = $this->params;
+        $date = date("Y-m-d");
+        $platform_id = $this->user->platform_id;
+        $driver = Driver::find()->where(['user_id' => $this->user->id])->one();
+        $driver_id = $driver->id;
+        $delivery = Delivery::find()->where(['platform_id' => $platform_id, 'driver_id' => $driver_id, 'delivery_date' => $date])->one();
+        $query = Order::find()->where(['platform_id' => $platform_id, 'delivery_id' => $delivery->id, 'status' => $params['status']]);
+        $count1 = Order::find()->where(['platform_id' => $platform_id, 'delivery_id' => $delivery->id, 'status' => 1])->count();
+        $count2 = Order::find()->where(['platform_id' => $platform_id, 'delivery_id' => $delivery->id, 'status' => 2])->count();
+        $listTmp = $query->orderBy('order_num asc')->all();
+        $data = [];
+        foreach ($listTmp as $key => $val) {
+            $data[$key]['order_id'] = $val->id;
+            $data[$key]['name'] = $val->customer->name;
+            $data[$key]['num'] = $val->num;
+            $data[$key]['delivery_time'] = $val->delivery_time;
+            $data[$key]['note'] = $val->note;
+            $data[$key]['distance'] = $val->distance;
+            if($params['status']==1) {
+                $duration = $val->duration;
+            }else{
+                $duration=$val->end_time-$val->start_time;
+            }
+            $data[$key]['duration'] = Utils::sec2time($duration);
+            $data[$key]['tel'] = $val->customer->tel1;
+            $data[$key]['longitude'] = $val->customer->longitude;
+            $data[$key]['latitude'] = $val->customer->latitude;
+        }
+        return $this->formatData(['goingNum'=>$count1,'finishNum'=>$count2,'list'=>$data]);
+
+
+    }
+
+}

@@ -1,0 +1,273 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 17/7/24
+ * Time: 上午11:44
+ */
+
+namespace app\ajax\controllers;
+
+
+use app\admin\models\PlatformUser;
+use app\base\lib\Utils;
+use app\home\models\Customer;
+use app\home\models\Delivery;
+use app\home\models\Driver;
+use app\home\models\Order;
+use app\home\models\User;
+use yii\helpers\ArrayHelper;
+
+class ApiController extends BaseController
+{
+    public function actionCustomer()
+    {
+
+
+        $platform_id = \Yii::$app->request->post('platform_id');
+        $keywords = \Yii::$app->request->post('keywords');
+        $data = [];
+        $data['delivery'] = Customer::find()->where(['platform_id' => $platform_id, 'status' => 0])->count();
+        $data['sleep'] = Customer::find()->where(['platform_id' => $platform_id, 'status' => 1])->count();
+        $query = Customer::find()->where(['platform_id' => $platform_id]);
+        if ($keywords) {
+            $query->andWhere(['or', ['like', 'code', $keywords], ['like', 'name', $keywords]]);
+        }
+        $listTmp = $query->all();
+        $data['items'] = [];
+        foreach ($listTmp as $key => $val) {
+            $data['items'][$key]['id'] = $val->id;
+            $data['items'][$key]['number'] = $val->code;
+            $data['items'][$key]['name'] = $val->name;
+            $data['items'][$key]['type'] = $val->status == 1 ? 2 : 1;
+            $data['items'][$key]['location'] = ['longitude' => $val->longitude, 'latitude' => $val->latitude];
+        }
+        unset($listTmp);
+        $this->response($data);
+
+
+    }
+
+    public function actionOrder()
+    {
+        $platform_id = \Yii::$app->request->post('platform_id');
+        $where['platform_id'] = $platform_id;
+        $where['status'] = 0;
+        if (date("G") >= 16) {
+            $tomorrow = date("Y-m-d", strtotime("+1 day"));
+            $where['delivery_date'] = $tomorrow;
+        } else {
+            $today = date("Y-m-d");
+            $where['delivery_date'] = $today;
+        }
+
+        $data = [];
+
+        $user = User::find()->where(['platform_id' => $platform_id])->all();
+        foreach ($user as $k => $v) {
+            $orders = Order::find()->where($where)->andWhere(['user_id' => $v->id])->all();
+            if ($orders) {
+                $data[$k]['id'] = $v->id;
+                $data[$k]['name'] = $v->username;
+                $data[$k]['items'] = [];
+                foreach ($orders as $key => $val) {
+                    $data[$k]['items'][$key]['order_id'] = $val->id;
+                    $data[$k]['items'][$key]['name'] = $val->customer->name;
+                    $data[$k]['items'][$key]['address'] = $val->customer->address;
+                    $data[$k]['items'][$key]['state'] = $val->status==1?2:1;
+                    $data[$k]['items'][$key]['delivery_time'] = $val->delivery_time;
+                    $data[$k]['items'][$key]['cargo_num'] = $val->num;
+                    $data[$k]['items'][$key]['remarks'] = $val->note;
+                    $data[$k]['items'][$key]['location'] = ['longitude' => $val->customer->longitude,
+                        'latitude' => $val->customer->latitude];
+                }
+            }
+        }
+
+
+        $this->response($data);
+
+    }
+
+    public function actionDriver()
+    {
+        $data = [];
+        $platform_id = \Yii::$app->request->post('platform_id');
+
+        $listTmp = Driver::find()->where(['platform_id' => $platform_id])->all();
+        foreach ($listTmp as $key => $val) {
+            $data[$key]['id'] = $val->id;
+            $data[$key]['driver'] = $val->username;
+            $data[$key]['tag'] = $val->checkLimit() ? '今日限行' : '';
+            $carInfo = [];
+            $carInfo[] = ['id' => 1, 'name' => '车牌号', 'value' => $val->car_number];
+            $carInfo[] = ['id' => 2, 'name' => '车型号', 'value' => $val->car_type];
+            $carInfo[] = ['id' => 3, 'name' => '车辆内控', 'value' => $val->inner_size];
+            $carInfo[] = ['id' => 4, 'name' => '车辆外厢', 'value' => $val->outer_size];
+            $data[$key]['car_info'] = $carInfo;
+            $data[$key]['goods_info'] = $val->getGoods();
+        }
+        unset($listTmp);
+        $this->response($data);
+    }
+
+
+    public function actionDeliver()
+    {
+        $data = [];
+        $platform_id = \Yii::$app->request->post('platform_id');
+        $date = \Yii::$app->request->post('date', date("Y-m-d"));
+        $listTmp = Delivery::find()->where(['delivery_date' => $date, 'platform_id' => $platform_id])->all();
+        foreach ($listTmp as $key => $val) {
+            $data[$key]['id'] = $val->id;
+            $data[$key]['name'] = $val->name;
+            $data[$key]['driver'] = $val->driver->username;
+            $data[$key]['distance'] = $val->distance;
+            $data[$key]['interval'] = Utils::sec2time($val->duration);
+            $data[$key]['goods_num'] = $val->num;
+            $data[$key]['total'] = $val->getOrderNum($platform_id);
+            $data[$key]['no_delivery'] = $val->getOrderNum($platform_id, 1);
+            $data[$key]['delivery'] = $val->getOrderNum($platform_id, 2);
+            $data[$key]['editable'] = $data[$key]['no_delivery'] == 0 ? false : true;
+        }
+        unset($listTmp);
+        $this->response($data);
+
+
+    }
+
+    public function actionDelDeliver()
+    {
+
+        $platform_id = \Yii::$app->request->post('platform_id');
+        $id = \Yii::$app->request->post('id');
+        if (!$id) {
+            $this->response([], '1002', 'id必须传');
+        }
+        Delivery::deleteAll(['id' => $id]);
+        Order::deleteAll(['delivery_id' => $id]);
+        $this->response([],1000,'删除成功!');
+    }
+
+
+    //配送单详情
+    public function actionDeliverInfo()
+    {
+        $data = [];
+        $platform_id = \Yii::$app->request->post('platform_id');
+        $id = \Yii::$app->request->post('id');
+        $row = Delivery::findOne($id);
+        $data['id'] = $row->id;
+        $data['total'] = $row->getOrderNum($platform_id);
+        $data['no_delivery'] = $row->getOrderNum($platform_id, 1);
+        $data['delivery'] = $row->getOrderNum($platform_id, 2);
+        $data['name'] = $row->name;
+        $data['driver'] = $row->driver->username;
+        $data['distance'] = $row->distance;
+        $data['interval'] = Utils::sec2time($row->duration);
+        $data['goods_num'] = $row->num;
+        $data['order_time'] = $row->delivery_date;
+        $data['items'] = [];
+        $listTmp = Order::find()->where(['platform_id' => $platform_id, 'delivery_id' => $id])
+            ->orderBy('order_num asc')->all();
+        foreach ($listTmp as $key => $val) {
+            $data['items'][$key]['order_id'] = $val->id;
+            $data['items'][$key]['name'] = $val->customer->name;
+            $data['items'][$key]['sort'] = $val->order_num;
+            $data['items'][$key]['address'] = $val->customer->address;
+            $data['items'][$key]['state'] = $val->status==1?2:1;
+            $data['items'][$key]['delivery_time'] = $val->delivery_time;
+            $data['items'][$key]['cargo_num'] = $val->num;
+            $data['items'][$key]['remarks'] = $val->note;
+            $data['items'][$key]['location'] = [
+                'longitude' => $val->customer->longitude,
+                'latitude' => $val->customer->latitude
+            ];
+            $data['items'][$key]['already'] = [
+                'arrival' => $val->start_time ? date("H:i", $val->start_time) : '',
+                'departure' => $val->end_time ? date("H:i", $val->end_time) : '',
+                'stop' => $val->start_time && $val->end_time ? Utils::sec2time($val->end_time - $val->start_time) : ''
+            ];
+        }
+        unset($listTmp);
+        $this->response($data);
+
+    }
+
+    public function actionAddDeliver()
+    {
+        $platform_id = \Yii::$app->request->post('platform_id');
+        $driver_id = \Yii::$app->request->post('driver_id');
+        $act = \Yii::$app->request->post('act');
+        $orders = \Yii::$app->request->post('orders');
+        foreach ($orders as $v) {
+            Order::updateAll(['order_num' => $v['order_num']]);
+
+        }
+    }
+
+
+    public function actionOrders()
+    {
+        $platform_id = \Yii::$app->request->post('platform_id');
+        $where['platform_id'] = $platform_id;
+        $date = \Yii::$app->request->post('date', date("Y-m-d"));
+        $data = [];
+        $ids = [];
+        $dlist = Delivery::find()->select('id')->where(['delivery_date' => $date, 'platform_id' => $platform_id])->all();
+        if ($dlist) {
+            foreach ($dlist as $key => $val) {
+                $ids[] = $val->id;
+            }
+            $c1 = Order::find()->where($where)->andWhere(['delivery_id' => $ids])->count();
+            $c2 = Order::find()->where($where)->andWhere(['delivery_id' => $ids, 'status' => 1])->count();
+            $c3 = Order::find()->where($where)->andWhere(['delivery_id' => $ids, 'status' => 2])->count();
+            $user = User::find()->where(['platform_id' => $platform_id])->all();
+            foreach ($user as $k => $v) {
+                $orders = Order::find()->where($where)->andWhere(['user_id' => $v->id, 'delivery_id' => $ids])->all();
+                if ($orders) {
+                    $data[$k]['id'] = $v->id;
+                    $data[$k]['name'] = $v->username;
+                    $data[$k]['items'] = [];
+                    foreach ($orders as $key => $val) {
+                        $data[$k]['items'][$key]['order_id'] = $val->id;
+                        $data[$k]['items'][$key]['name'] = $val->customer->name;
+                        $data[$k]['items'][$key]['address'] = $val->customer->address;
+                        $data[$k]['items'][$key]['state'] = $val->status==1?2:1;
+                        $data[$k]['items'][$key]['delivery_time'] = $val->delivery_time;
+                        $data[$k]['items'][$key]['cargo_num'] = $val->num;
+                        $data[$k]['items'][$key]['remarks'] = $val->note;
+                        $data[$k]['items'][$key]['location'] = ['longitude' => $val->customer->longitude,
+                            'latitude' => $val->customer->latitude];
+                    }
+                }
+            }
+
+        }
+
+
+        $this->response(['total' => $c1, 'no_delivery' => $c2, 'delivery' => $c3, 'list' => $data]);
+
+    }
+
+
+    public function actionGetLocation()
+    {
+
+        $platform_id = \Yii::$app->request->post('platform_id');
+        $one = PlatformUser::findOne($platform_id);
+        $data = [];
+        $data['location'] = [
+            'longitude' => $one->longitude,
+            'latitude' => $one->latitude
+        ];
+        $this->response($data);
+    }
+
+    public function actionTest()
+    {
+
+        return $this->renderPartial('test');
+    }
+
+}

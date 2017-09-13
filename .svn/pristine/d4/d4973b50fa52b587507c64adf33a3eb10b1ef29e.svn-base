@@ -1,0 +1,47 @@
+<?php
+
+use yii\helpers\Html;
+use yii\grid\GridView;
+
+/* @var $this yii\web\View */
+/* @var $dataProvider yii\data\ActiveDataProvider */
+
+$this->title = '考勤列表';
+$this->params['breadcrumbs'][] = $this->title;
+?>
+<section class="content">
+    <div class="row">
+        <div class="col-xs-12">
+
+
+            <div class="box">
+
+                <!-- /.box-header -->
+                <div class="box-body">
+
+
+
+
+    <?= GridView::widget([
+        'dataProvider' => $dataProvider,
+        'columns' => [
+
+            'clock_date',
+            'total_num',
+            'in_num',
+             'leave_num',
+
+    ['class' => 'app\admin\components\ActionColumn','template'=>'{detail}','buttons'=>[
+        'detail' => function ($url, $model) {
+
+                return Html::a('<span class="fa fa-eye"></span>', \yii\helpers\Url::to(['list', 'date' => $model->clock_date]), [
+                    'title' => '设置权限',   'class' => 'btn btn-xs bg-aqua',
+                    'style' => 'width:40px'
+                ]);
+
+        }
+    ]],
+
+        ],
+    ]); ?>
+</div></div></div></div></section>

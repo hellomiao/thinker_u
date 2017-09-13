@@ -1,0 +1,52 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 17/7/19
+ * Time: 下午1:57
+ */
+
+namespace app\home\api;
+
+
+use app\api\components\BaseApi;
+use app\home\models\DeliveryLocations;
+use app\home\models\Driver;
+use app\home\models\DriverClockList;
+use app\home\models\DriverClockTotal;
+use app\home\models\Order;
+use yii\base\Exception;
+
+class DriverLog extends BaseApi
+{
+    protected function rules()
+    {
+        return [
+            'order_id' => ['name' => '订单ID'],
+            'longitude' => ['name' => '经度'],
+            'latitude' => ['name' => '纬度'],
+        ];
+    }
+
+    public function run()
+    {
+
+        $params = $this->params;
+        $order = Order::findOne($params['order_id']);
+        if(!$order){
+           throw new Exception('订单不存在');
+        }
+        $locations = new DeliveryLocations();
+        $locations->platform_id = $this->user->platform_id;
+        $locations->delivery_id = $order->delivery_id;
+        $locations->order_id = $params['order_id'];
+        $locations->longitude = $params['longitude'];
+        $locations->latitude = $params['latitude'];
+        $locations->created_at = time();
+        $locations->save();
+        return $this->formatData();
+
+
+    }
+
+}

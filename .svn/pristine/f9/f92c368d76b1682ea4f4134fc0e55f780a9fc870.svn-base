@@ -1,0 +1,38 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 17/6/8
+ * Time: 下午4:12
+ */
+
+namespace app\admin\api;
+
+
+use app\admin\models\Picture;
+use app\api\components\BaseApi;
+
+class PictureList extends BaseApi
+{
+    protected function rules()
+    {
+        return [
+
+        ];
+    }
+
+    public function run()
+    {
+
+        $picture = Picture::find()->all();
+        $data = [];
+
+        foreach ($picture as $key => $val) {
+
+            $data[$key] = \Yii::$app->request->hostInfo . $val->getAttachPath();
+        }
+
+        return $this->formatData($data);
+
+    }
+}

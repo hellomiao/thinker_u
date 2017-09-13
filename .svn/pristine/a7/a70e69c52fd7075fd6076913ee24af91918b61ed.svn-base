@@ -1,0 +1,20 @@
+{
+    "name": "thinker/yii2-wangeditor-widget",
+    "description": "yii2-wangeditor-widget",
+    "license": "BSD-3-Clause",
+    "type": "yii2-extension",
+    "authors": [
+        {
+            "name": "heypigg",
+            "email": "thinker06@aliyun.com"
+        }
+    ],
+    "require": {
+        "yiisoft/yii2": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "thinker\\wangeditor\\": ""
+        }
+    }
+}

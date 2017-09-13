@@ -1,0 +1,126 @@
+<?php
+/**
+ * Created by PhpStorm.
+ * User: yangchunrun
+ * Date: 17/7/19
+ * Time: 下午1:57
+ */
+
+namespace app\home\api;
+
+
+use app\api\components\BaseApi;
+use app\home\models\Driver;
+use app\home\models\DriverClockList;
+use app\home\models\DriverClockTotal;
+use yii\base\Exception;
+
+class DriverClock extends BaseApi
+{
+    protected function rules()
+    {
+        return [
+            'type' => ['required' => true, 'name' => '类型', "info" => "0上班 1下班"],
+            'longitude' => ['name' => '经度'],
+            'latitude' => ['name' => '纬度'],
+            'address' => ['name' => '地址'],
+        ];
+    }
+
+    public function run()
+    {
+
+        $params = $this->params;
+        $date = date("Y-m-d");
+        $platform_id = $this->user->platform_id;
+        $minTime = mktime(0, 0, 0, date('m'), date('d'), date('Y'));
+        $maxTime = mktime(24, 0, 0, date('m'), date('d'), date('Y'));
+
+        $driver=Driver::find()->where(['user_id'=>$this->user->id])->one();
+        $driver_id =  $driver->id;
+        $isExists = \app\home\models\DriverClock::find()
+            ->where(['platform_id' => $platform_id, 'driver_id' => $driver_id, 'type' => $params['type']])->andWhere(['>=',
+                'created_at', $minTime])->andWhere(['<=', 'created_at', $maxTime])->exists();
+        if ($isExists) {
+            throw new Exception('您已经打过卡,请勿重复打卡');
+        }
+        $clock = new \app\home\models\DriverClock();
+        $clock->platform_id = $platform_id;
+        $clock->driver_id = $driver_id;
+        $clock->type = $params['type'];
+        $clock->longitude = $params['longitude'];
+        $clock->latitude = $params['latitude'];
+        $clock->address = $params['address'];
+        $clock->pic = $params['pic'];
+        $clock->created_at = time();
+        if ($clock->save()) {
+            $list = DriverClockList::find()->where(['platform_id' => $platform_id, 'driver_id' => $driver_id, 'clock_date' => $date])->one();
+            if (!$list) {
+                $listModel = new DriverClockList();
+                $listModel->platform_id = $platform_id;
+                $listModel->clock_date = $date;
+                $listModel->driver_id = $driver_id;
+                if ($params['type'] == 0) {
+                    $listModel->in_longitude = $params['longitude'];
+                    $listModel->in_latitude = $params['latitude'];
+                    $listModel->in_address = $params['address'];
+                    $listModel->in_pic = $params['pic'];
+                    $listModel->in_time = time();
+                } else {
+                    $listModel->out_longitude = $params['longitude'];
+                    $listModel->out_latitude = $params['latitude'];
+                    $listModel->out_address = $params['address'];
+                    $listModel->out_pic = $params['pic'];
+                    $listModel->out_time = time();
+                }
+                $listModel->save();
+            } else {
+                if ($params['type'] == 0) {
+                    $list->in_longitude = $params['longitude'];
+                    $list->in_latitude = $params['latitude'];
+                    $list->in_address = $params['address'];
+                    $list->in_pic = $params['pic'];
+                    $list->in_time = time();
+                } else {
+                    $list->out_longitude = $params['longitude'];
+                    $list->out_latitude = $params['latitude'];
+                    $list->out_address = $params['address'];
+                    $list->out_pic = $params['pic'];
+                    $list->out_time = time();
+                }
+                $list->save();
+            }
+            $count = \app\home\models\DriverClock::find()
+                ->where(['platform_id' => $platform_id, 'type' => $params['type']])->andWhere(['>=',
+                    'created_at', $minTime])->andWhere(['<=', 'created_at', $maxTime])->count('distinct driver_id');
+            $total = DriverClockTotal::find()
+                ->where(['platform_id' => $platform_id, 'clock_date' => $date])->one();
+            if (!$total) {
+                $model = new DriverClockTotal();
+                $model->clock_date = $date;
+                $model->platform_id = $platform_id;
+                $model->total_num = $count;
+                if ($params['type'] == 1) {
+                    $model->leave_num = 1;
+                } else {
+                    $model->in_num = 1;
+                }
+                $model->save();
+
+            } else {
+                $total->total_num = $count;
+                if ($params['type'] == 1) {
+                    $total->leave_num += 1;
+                } else {
+                    $total->in_num += 1;
+                }
+                $total->save();
+            }
+
+        }
+        return $this->formatData();
+
+
+    }
+
+}
